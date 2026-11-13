@@ -1,5 +1,7 @@
 # Unearth (game)
 
+**The playable game is now the browser build in [web/index.html](web/index.html)** (Three.js, one file, touch and mouse controls), published as a Claude artifact so it can be played on an iPad. Changes are tracked in [CHANGELOG.md](CHANGELOG.md). The Godot project below is the earlier prototype, kept as reference.
+
 First playable prototype of the lo-fi horror game. Idea and references: [ideas/unearth-game.md](../ideas/unearth-game.md). **Picking this up in a new chat? Start with [HANDOFF.md](HANDOFF.md).** It grew out of the web prototype in [unearth/](../unearth/).
 
 The game now opens on the menu inside the Cleaner's ship, plays the opening sequence, and puts you in level 1, the Loading Bay of Meridian Labs. The earlier prototype (a dark test hall with the ghost gas, and the image artifacts you reveal with the ray gun) is still there: run with `-- --level=hall`.
