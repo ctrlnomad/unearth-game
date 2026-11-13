@@ -171,9 +171,10 @@ func _process(_delta: float) -> void:
 			if touch.role == "fire":
 				held = true
 	else:
-		held = (free_mouse or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED) and Input.is_action_pressed("fire")
-	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		free_mouse = false
+		var captured := _captured()
+		held = (free_mouse or captured) and Input.is_action_pressed("fire")
+		if captured:
+			free_mouse = false
 	player.touch_active = touch_mode or free_mouse
 	player.gun.fire_held = held and not options.visible and not game.sheet_open()
 	game.touch_ui.fire_on = held
@@ -218,6 +219,16 @@ func _input(event: InputEvent) -> void:
 			player.look_radians(event.relative * 4.0 / ui.size.y)
 
 
+## True only while the mouse really is captured. A browser can refuse the
+## request (an iPad always does) while Godot still reports the captured mode.
+func _captured() -> bool:
+	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		return false
+	if OS.has_feature("web"):
+		return bool(JavaScriptBridge.eval("!!document.pointerLockElement", true))
+	return true
+
+
 ## Press the cabin button at a point on the screen (menu only).
 func _menu_pick(screen_pos: Vector2) -> void:
 	if opening == null or options.visible or game.sheet_open():
@@ -241,7 +252,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		touch_mode = false   # a real mouse: back to mouse controls
 	elif event is InputEventMouse and touch_mode:
 		return
-	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+	if _captured():
 		if event is InputEventMouseMotion:
 			player.look(event.relative)
 		elif event.is_action_pressed("ui_cancel"):
@@ -250,12 +261,14 @@ func _unhandled_input(event: InputEvent) -> void:
 			opening.click()
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		get_viewport().gui_release_focus()
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE   # in case an earlier request was refused: ask again
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		_menu_pick(event.position)   # in the menu, the click that captures the mouse also presses what it is on
 		# A browser may refuse the capture (an iPad never grants it). The mouse then
 		# plays uncaptured: move to look, hold the button to fire.
 		free_mouse = OS.has_feature("web") and not dev_panel.visible
-	elif free_mouse and event is InputEventMouseMotion and not dev_panel.visible:
+	elif free_mouse and event is InputEventMouseMotion and not dev_panel.visible and game.state == "play":
+		# Not in the menu: there the cursor has to be able to reach the START button.
 		player.look(event.relative)
 
 

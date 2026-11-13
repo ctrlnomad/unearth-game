@@ -18,8 +18,12 @@ const Ghost := preload("res://scripts/ghost.gd")
 const TouchUI := preload("res://scripts/touch_ui.gd")
 const Sfx := preload("res://scripts/sfx.gd")
 
-const VERSION := "0.2.1"
+const VERSION := "0.2.2"
 const LOG := [
+	["v0.2.2 - 2026-11-13 - Clicking and sensitivity", [
+		"Clicking works when the browser refuses to capture the mouse: START in the menu is pressed where the cursor is, and the button fires the scanner.",
+		"Mouse look is about half as fast, and no longer doubles on high-density screens.",
+	]],
 	["v0.2.1 - 2026-11-13 - Mouse fix", [
 		"The mouse now works in browsers that refuse to capture it (an iPad with a mouse or trackpad): move to look, hold the button to fire, WASD to walk.",
 		"The on-screen FIRE button and thumbstick only show when you are playing by touch.",

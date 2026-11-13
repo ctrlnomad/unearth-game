@@ -122,7 +122,7 @@ const SPECS := [
 	["look.fov", 72.0, 30.0, 110.0, 1.0, "Camera field of view, degrees."],
 	["player.walk", 3.2, 0.5, 12.0, 0.1, "Walk speed, m/s."],
 	["player.run", 5.5, 0.5, 20.0, 0.1, "Run speed (Shift), m/s."],
-	["player.mouse_sens", 0.22, 0.02, 1.0, 0.01, "Mouse sensitivity."],
+	["player.mouse_sens", 0.12, 0.02, 1.0, 0.01, "Mouse sensitivity."],
 	["player.bob", 0.03, 0.0, 0.2, 0.005, "Head bob amount, metres."],
 ]
 

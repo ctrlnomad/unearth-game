@@ -2,6 +2,11 @@
 
 The same log is shown in the game (menu, "Version log").
 
+## v0.2.2 (2026-11-13): clicking and sensitivity
+
+- Bug: when a browser refused pointer capture, Godot still reported the mouse as captured, so clicks were aimed at the crosshair instead of the cursor (START could not be pressed). The game now checks the browser's real capture state.
+- Mouse sensitivity default lowered from 0.22 to 0.12, and in browsers it is divided by the screen's pixel density (it was twice as fast on Retina screens).
+
 ## v0.2.1 (2026-11-13): mouse fix
 
 - Bug: on itch.io the mouse did nothing when the browser refused to capture the pointer (an iPad never grants it). The mouse now plays uncaptured in that case: move to look, hold the button to fire, WASD to walk.

@@ -46,7 +46,10 @@ func _ready() -> void:
 
 
 func look(relative: Vector2) -> void:
-	look_radians(relative * float(Tuning.v("player.mouse_sens")) * 0.01)
+	# Browsers report mouse movement in device pixels: divide by the screen scale so a
+	# high-density screen (a Retina laptop, an iPad) does not turn twice as fast.
+	var density := maxf(DisplayServer.screen_get_scale(), 1.0) if OS.has_feature("web") else 1.0
+	look_radians(relative * float(Tuning.v("player.mouse_sens")) * 0.01 / density)
 
 
 ## Turn by an angle (x = right, y = down), radians.
@@ -72,7 +75,7 @@ func _physics_process(delta: float) -> void:
 		camera.rotation = cine_tilt
 		return
 	camera.rotation = Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * shake * 0.12
-	var playing := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or touch_active
+	var playing := touch_active or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	if not is_on_floor():
 		velocity.y -= GRAVITY * delta
 	elif playing and Input.is_action_just_pressed("jump"):
