@@ -1,0 +1,82 @@
+; Engine configuration file.
+; Unearth: lo-fi first-person prototype. Input actions are registered in scripts/main.gd.
+; The game renders into a low-res SubViewport (see main.gd); the window itself is full res
+; so the dev panel (F1) stays readable.
+
+config_version=5
+
+[application]
+
+config/name="Unearth"
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.7", "Forward Plus")
+
+[autoload]
+
+Tuning="*res://scripts/tuning.gd"
+
+[display]
+
+window/size/viewport_width=1600
+window/size/viewport_height=900
+
+[physics]
+
+common/physics_ticks_per_second=60
+
+[rendering]
+
+textures/canvas_textures/default_texture_filter=0
+anti_aliasing/quality/msaa_3d=0
+anti_aliasing/quality/screen_space_aa=0
+
+[shader_globals]
+
+psx_snap={
+"type": "vec2",
+"value": Vector2(400, 225)
+}
+psx_resolution={
+"type": "vec2",
+"value": Vector2(400, 225)
+}
+psx_affine={
+"type": "float",
+"value": 0.6
+}
+reveal_now={
+"type": "float",
+"value": 0.0
+}
+reveal_hold={
+"type": "float",
+"value": 1.5
+}
+reveal_fade={
+"type": "float",
+"value": 2.5
+}
+reveal_dissolve={
+"type": "float",
+"value": 1.0
+}
+reveal_flash={
+"type": "float",
+"value": 0.85
+}
+reveal_flash_decay={
+"type": "float",
+"value": 3.0
+}
+reveal_point_scale={
+"type": "float",
+"value": 1.2
+}
+reveal_min_pixels={
+"type": "float",
+"value": 1.0
+}
+reveal_flash_color={
+"type": "vec3",
+"value": Vector3(1, 0.1, 0.05)
+}
