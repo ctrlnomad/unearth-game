@@ -18,8 +18,12 @@ const Ghost := preload("res://scripts/ghost.gd")
 const TouchUI := preload("res://scripts/touch_ui.gd")
 const Sfx := preload("res://scripts/sfx.gd")
 
-const VERSION := "0.2"
+const VERSION := "0.2.1"
 const LOG := [
+	["v0.2.1 - 2026-11-13 - Mouse fix", [
+		"The mouse now works in browsers that refuse to capture it (an iPad with a mouse or trackpad): move to look, hold the button to fire, WASD to walk.",
+		"The on-screen FIRE button and thumbstick only show when you are playing by touch.",
+	]],
 	["v0.2 - 2026-11-13 - Moved to Godot", [
 		"The game is built in Godot again and exported to the browser, so the laptop game and the iPad build are the same project.",
 		"Everything from v0.1 is ported: power cells, scanner dots, ghosts, flares, the vents and Reception.",

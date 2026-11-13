@@ -2,6 +2,11 @@
 
 The same log is shown in the game (menu, "Version log").
 
+## v0.2.1 (2026-11-13): mouse fix
+
+- Bug: on itch.io the mouse did nothing when the browser refused to capture the pointer (an iPad never grants it). The mouse now plays uncaptured in that case: move to look, hold the button to fire, WASD to walk.
+- A real mouse click switches back from touch controls; the on-screen FIRE button and thumbstick only show while playing by touch.
+
 ## v0.2 (2026-11-13): moved to Godot
 
 Direction decisions

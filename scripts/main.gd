@@ -37,6 +37,7 @@ var game: Node               # rules and HUD (scripts/game.gd)
 var dots: Node               # the scanner's marks (scripts/scan_dots.gd)
 var touch_mode := false      # set by the first touch: on-screen controls, no mouse capture
 var _touches := {}           # touch index -> {role: look/move/fire, start, moved}
+var free_mouse := false      # the mouse plays without being captured (browsers that refuse pointer lock, e.g. on an iPad)
 var _post: ShaderMaterial
 var _crosshair: ColorRect
 
@@ -170,10 +171,13 @@ func _process(_delta: float) -> void:
 			if touch.role == "fire":
 				held = true
 	else:
-		held = Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and Input.is_action_pressed("fire")
-	player.touch_active = touch_mode
+		held = (free_mouse or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED) and Input.is_action_pressed("fire")
+	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		free_mouse = false
+	player.touch_active = touch_mode or free_mouse
 	player.gun.fire_held = held and not options.visible and not game.sheet_open()
 	game.touch_ui.fire_on = held
+	game.touch_ui.visible = touch_mode
 
 
 ## Touch controls. Left side of the screen: thumbstick. FIRE button: trigger, and
@@ -231,8 +235,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if options.visible or game.sheet_open():
 		return
-	if event is InputEventMouse and (touch_mode or event.device == InputEvent.DEVICE_ID_EMULATION):
+	if event is InputEventMouse and event.device == InputEvent.DEVICE_ID_EMULATION:
 		return   # touches are handled in _input
+	if event is InputEventMouseButton and event.pressed:
+		touch_mode = false   # a real mouse: back to mouse controls
+	elif event is InputEventMouse and touch_mode:
+		return
 	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		if event is InputEventMouseMotion:
 			player.look(event.relative)
@@ -244,6 +252,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().gui_release_focus()
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		_menu_pick(event.position)   # in the menu, the click that captures the mouse also presses what it is on
+		# A browser may refuse the capture (an iPad never grants it). The mouse then
+		# plays uncaptured: move to look, hold the button to fire.
+		free_mouse = OS.has_feature("web") and not dev_panel.visible
+	elif free_mouse and event is InputEventMouseMotion and not dev_panel.visible:
+		player.look(event.relative)
 
 
 func _add_overlay() -> void:
