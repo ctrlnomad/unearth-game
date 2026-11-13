@@ -64,7 +64,14 @@ func click() -> void:
 	if state != MENU:
 		return
 	var cam: Camera3D = player.camera
-	match level.button_at(cam.global_position, -cam.global_basis.z):
+	click_ray(cam.global_position, -cam.global_basis.z)
+
+
+## Press whatever cabin button the ray hits (a tap or an uncaptured click).
+func click_ray(origin: Vector3, dir: Vector3) -> void:
+	if state != MENU:
+		return
+	match level.button_at(origin, dir):
 		"start":
 			press_start()
 		"options":

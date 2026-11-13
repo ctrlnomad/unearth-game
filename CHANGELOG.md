@@ -2,6 +2,24 @@
 
 The same log is shown in the game (menu, "Version log").
 
+## v0.2 (2026-11-13): moved to Godot
+
+Direction decisions
+- The game is developed in Godot again (4.7.2) and exported to the browser, so the laptop game and the iPad build are one project. The v0.1 browser prototype in `web/` is no longer developed.
+- The web export uses Godot's Compatibility renderer. The Loading Bay's volumetric haze is not available there, so in the browser the bay has distance fog only; the desktop build keeps the haze.
+- The scanner is amber (it was red in the first Godot prototype), so it reads against the red emergency lights and the cyan gas. Its spray is wider and denser, because it now paints the room with dots.
+
+What is in
+- Everything from v0.1, ported to Godot: power cells, scanner dots, ghosts that follow the scanner's radiation and freeze under the beam, solar flares, emergency lights and vents, getting caught, Level 2 (Reception), the end card.
+- Level 1 is the original Godot Loading Bay (the larger octagonal hall, the Earth, the ship exploding), now with three cells, emergency lights, the cargo door opening and the shape in the dust.
+- Touch controls: thumbstick on the left, look on the right, FIRE button. In the menu, tap the START button by the door.
+- Menu buttons for the version log and for starting at level 2.
+- New dev-mode constants: `gun.dot_life`, `cell.charge_time`, `ghost.*`, `flare.every`, `rec.*`.
+- Capture mode: `--level=2`, `--charge=N` (fill N cells), `--ghost=x,z` (stand a lit ghost there).
+
+Not checked
+- Sound by ear, and how the web build runs on a real iPad.
+
 ## v0.1 (2026-11-13): first browser build
 
 Direction decisions

@@ -12,6 +12,7 @@ uniform float min_pixels;
 uniform float drift;             // metres a mote wanders from home
 uniform float clock;             // seconds, already scaled by bay.mote_speed
 uniform float pulse;             // 0 = steady glow, 1 = full firefly pulsing
+uniform float vent = 0.0;        // 0..1: the vents are on; motes rise and thin out
 global uniform vec2 psx_resolution;
 
 varying float v_bright;
@@ -25,12 +26,13 @@ void vertex() {
 		sin(t + ph) + 0.5 * sin(t * 0.37 + s * 20.0),
 		0.6 * sin(t * 0.8 + ph * 1.7),
 		cos(t * 0.9 + ph * 0.6) + 0.5 * sin(t * 0.23 + s * 9.0));
+	world.y += vent * vent * 18.0 * (0.4 + s);
 	vec4 pivot = VIEW_MATRIX * vec4(world, 1.0);
 	float metres_per_px = 2.0 * -pivot.z / (PROJECTION_MATRIX[1][1] * psx_resolution.y);
 	float size = max(particle_size, min_pixels * metres_per_px);
 	POSITION = PROJECTION_MATRIX * (pivot + vec4(VERTEX.xy * size, 0.0, 0.0));
 	float p = 0.5 + 0.5 * sin(clock * (1.2 + 2.0 * s) + ph * 3.0);
-	v_bright = glow * mix(1.0, p * p * p, pulse);
+	v_bright = glow * mix(1.0, p * p * p, pulse) * (1.0 - smoothstep(0.35, 1.0, vent));
 }
 
 void fragment() {

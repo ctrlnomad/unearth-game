@@ -1,8 +1,6 @@
 # Unearth (game)
 
-**The playable game is now the browser build in [web/index.html](web/index.html)** (Three.js, one file, touch and mouse controls), published as a Claude artifact so it can be played on an iPad. Changes are tracked in [CHANGELOG.md](CHANGELOG.md). The Godot project below is the earlier prototype, kept as reference.
-
-First playable prototype of the lo-fi horror game. Idea and references: [ideas/unearth-game.md](../ideas/unearth-game.md). **Picking this up in a new chat? Start with [HANDOFF.md](HANDOFF.md).** It grew out of the web prototype in [unearth/](../unearth/).
+**Play it in a browser:** the Godot project is exported to the web and uploaded to itch.io (see "Web build" below). Changes are tracked in [CHANGELOG.md](CHANGELOG.md), and the same log is in the game's menu. [web/index.html](web/index.html) is the v0.1 browser prototype (Three.js), kept for reference and no longer developed.
 
 The game now opens on the menu inside the Cleaner's ship, plays the opening sequence, and puts you in level 1, the Loading Bay of Meridian Labs. The earlier prototype (a dark test hall with the ghost gas, and the image artifacts you reveal with the ray gun) is still there: run with `-- --level=hall`.
 
@@ -15,6 +13,19 @@ godot --path unearth-game
 ```
 
 Run that from `create/`. To open it in the editor, use `godot -e --path unearth-game`. On a fresh checkout, run `godot --headless --path unearth-game --import` once first.
+
+## Web build
+
+```bash
+godot --headless --path . --export-release Web build/web/index.html   # needs the 4.7.2 web export templates
+butler push build/web kenzhe/unearth:html5 --userversion 0.2
+```
+
+The export preset is in `export_presets.cfg` (single-threaded, so it needs no special server headers). The web build uses the Compatibility renderer: no volumetric haze. On a touch screen: left thumb moves, right thumb looks, hold FIRE; in the menu, tap START. `?level=2` on the page address starts in Reception.
+
+## The game so far
+
+Charge every power cell in a level with the scanner (`scripts/battery.gd`) to bring back emergency power; the vents then clear the gas and the way on opens. The scanner's rays leave fading dots on every surface (`scripts/scan_dots.gd`). From level 2 the gas walks in the shape of the crew (`scripts/ghost.gd`): it is invisible until rays or a solar flare light it, it walks toward you (faster while you fire), and holding the beam on it freezes it for a few seconds. `scripts/game.gd` holds these rules and the HUD; each level scripts its own beats through hooks (`game_update`, `cell_filled`, `power_restored`). Level 2 is `scripts/reception.gd`.
 
 ## Controls
 

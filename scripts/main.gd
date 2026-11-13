@@ -17,6 +17,9 @@ extends Node
 
 const Hall := preload("res://scripts/level.gd")
 const LoadingBay := preload("res://scripts/loading_bay.gd")
+const Reception := preload("res://scripts/reception.gd")
+const Game := preload("res://scripts/game.gd")
+const ScanDots := preload("res://scripts/scan_dots.gd")
 const Opening := preload("res://scripts/opening.gd")
 const OptionsMenu := preload("res://scripts/options_menu.gd")
 const Player := preload("res://scripts/player.gd")
@@ -29,7 +32,11 @@ var level: Node3D
 var player: CharacterBody3D
 var dev_panel: CanvasLayer
 var options: CanvasLayer
-var opening: Node            # the menu + opening sequence; null in the test hall
+var opening: Node            # the menu + opening sequence; null in the test hall and after level 1
+var game: Node               # rules and HUD (scripts/game.gd)
+var dots: Node               # the scanner's marks (scripts/scan_dots.gd)
+var touch_mode := false      # set by the first touch: on-screen controls, no mouse capture
+var _touches := {}           # touch index -> {role: look/move/fire, start, moved}
 var _post: ShaderMaterial
 var _crosshair: ColorRect
 
@@ -55,12 +62,19 @@ func _ready() -> void:
 	player = Player.new()
 	player.position = level.spawn_point
 	game_view.add_child(player)
+	dots = ScanDots.new()
+	game_view.add_child(dots)
 	_add_overlay()
 
 	options = OptionsMenu.new()
 	add_child(options)
 	dev_panel = DevPanel.new()
 	add_child(dev_panel)
+	game = Game.new()
+	game.main = self
+	game.player = player
+	game.dots = dots
+	add_child(game)
 
 	if level is LoadingBay:
 		opening = Opening.new()
@@ -68,18 +82,49 @@ func _ready() -> void:
 		opening.player = player
 		opening.main = self
 		add_child(opening)
-		if args.get("state", "") == "play":
+		opening.finished.connect(func(): game.begin_level(level, 1))
+		if args.get("level", "") == "2":
+			start_at(2)
+		elif args.get("state", "") == "play":
 			opening.skip()
 
 	if args.has("capture"):
 		_run_capture(args)
-	else:
+	elif not OS.has_feature("web"):   # a browser only allows capture after a click
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
 ## 1 = normal picture, 0 = black.
 func set_fade(amount: float) -> void:
 	_post.set_shader_parameter("fade", amount)
+
+
+## Post-pass effects: "cyan" (caught by the gas), "flash", "prox" (a ghost is near).
+func set_fx(effect: String, amount: float) -> void:
+	_post.set_shader_parameter(effect, amount)
+
+
+## Skip the menu and opening sequence and start in the given level.
+func start_at(number: int) -> void:
+	if opening:
+		opening.skip()
+	if number > 1:
+		load_level(number)
+
+
+## Replace the current level (level 2 is Reception) and put the player at its door.
+func load_level(number: int) -> void:
+	if opening:
+		opening.queue_free()
+		opening = null
+	game_view.remove_child(level)
+	level.queue_free()
+	level = Reception.new()
+	game_view.add_child(level)
+	player.position = level.spawn_point
+	player.velocity = Vector3.ZERO
+	player.set_aim(0, 0)
+	game.begin_level(level, number)
 
 
 func set_crosshair(shown: bool) -> void:
@@ -115,7 +160,66 @@ func _process(_delta: float) -> void:
 	_post.set_shader_parameter("vignette", Tuning.v("look.vignette"))
 	# A level can name its own fog and ambient constants (the bay is much bigger than the hall).
 	level.environment.fog_density = Tuning.v(level.fog_key if "fog_key" in level else "look.fog")
-	level.environment.ambient_light_energy = Tuning.v(level.ambient_key if "ambient_key" in level else "look.ambient")
+	level.environment.ambient_light_energy = float(Tuning.v(level.ambient_key if "ambient_key" in level else "look.ambient")) \
+			+ (float(level.ambient_boost) if "ambient_boost" in level else 0.0)
+
+	# The trigger: the touch FIRE button, or the mouse while it is captured.
+	var held := false
+	if touch_mode:
+		for touch: Dictionary in _touches.values():
+			if touch.role == "fire":
+				held = true
+	else:
+		held = Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and Input.is_action_pressed("fire")
+	player.touch_active = touch_mode
+	player.gun.fire_held = held and not options.visible and not game.sheet_open()
+	game.touch_ui.fire_on = held
+
+
+## Touch controls. Left side of the screen: thumbstick. FIRE button: trigger, and
+## dragging from it also aims. Anywhere else: look. In the menu a tap presses
+## the cabin button under the finger.
+func _input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch:
+		touch_mode = true
+		var ui: Control = game.touch_ui
+		if event.pressed:
+			var role := "look"
+			if game.state == "play":
+				if event.position.distance_to(ui.fire_center()) < ui.fire_radius() * 1.5:
+					role = "fire"
+				elif event.position.x < ui.size.x * 0.42 and not ui.stick_on:
+					role = "move"
+					ui.stick_on = true
+					ui.stick_origin = event.position
+					ui.stick_pos = event.position
+			_touches[event.index] = {"role": role, "start": event.position, "moved": 0.0}
+		elif _touches.has(event.index):
+			var touch: Dictionary = _touches[event.index]
+			_touches.erase(event.index)
+			if touch.role == "move":
+				player.touch_move = Vector2.ZERO
+				ui.stick_on = false
+			if touch.moved < 20.0:
+				_menu_pick(event.position)
+	elif event is InputEventScreenDrag and _touches.has(event.index):
+		var touch: Dictionary = _touches[event.index]
+		touch.moved += event.relative.length()
+		var ui: Control = game.touch_ui
+		if touch.role == "move":
+			var v: Vector2 = ((event.position - touch.start) / ui.stick_radius()).limit_length(1.0)
+			player.touch_move = v
+			ui.stick_pos = touch.start + v * ui.stick_radius()
+		elif not options.visible and not game.sheet_open():
+			player.look_radians(event.relative * 4.0 / ui.size.y)
+
+
+## Press the cabin button at a point on the screen (menu only).
+func _menu_pick(screen_pos: Vector2) -> void:
+	if opening == null or options.visible or game.sheet_open():
+		return
+	var p := screen_pos / float(container.stretch_shrink)
+	opening.click_ray(player.camera.project_ray_origin(p), player.camera.project_ray_normal(p))
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -125,8 +229,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		if dev_panel.visible:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		return
-	if options.visible:
+	if options.visible or game.sheet_open():
 		return
+	if event is InputEventMouse and (touch_mode or event.device == InputEvent.DEVICE_ID_EMULATION):
+		return   # touches are handled in _input
 	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		if event is InputEventMouseMotion:
 			player.look(event.relative)
@@ -137,6 +243,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		get_viewport().gui_release_focus()
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		_menu_pick(event.position)   # in the menu, the click that captures the mouse also presses what it is on
 
 
 func _add_overlay() -> void:
@@ -190,6 +297,12 @@ func _user_args() -> Dictionary:
 	for arg in OS.get_cmdline_user_args():
 		var kv := arg.trim_prefix("--").split("=", true, 1)
 		out[kv[0]] = kv[1] if kv.size() > 1 else ""
+	if OS.has_feature("web"):   # in a browser: ?level=2 or ?state=play on the page address
+		var query: Variant = JavaScriptBridge.eval("window.location.search", true)
+		if query is String:
+			for pair: String in (query as String).trim_prefix("?").split("&", false):
+				var kv := pair.split("=", true, 1)
+				out[kv[0]] = kv[1].uri_decode() if kv.size() > 1 else ""
 	return out
 
 
@@ -221,6 +334,14 @@ func _run_capture(args: Dictionary) -> void:
 		if opening and args.has("click") and i == 20:   # click whatever the crosshair is on
 			opening.click()
 			print("click -> ", "sequence started" if opening.state == Opening.SEQUENCE else "nothing")
+		if i == 10:   # --charge=N fills the first N cells; --ghost=x,z stands a lit ghost there
+			for n in mini(int(args.get("charge", "0")), game.batteries.size()):
+				game.batteries[n].add_charge(1.0)
+			if args.has("ghost"):
+				var at: PackedFloat64Array = args["ghost"].split_floats(",")
+				var g: Node3D = game.spawn_ghost(Vector3(at[0], 0, at[1]), args.get("ghost_state", "idle"))
+				g.flare = 1.0
+				g.hold_flare = not args.has("ghost_dark")
 		if args.has("fire_frames") and i == int(args["fire_frames"]):
 			player.gun.force_fire = false
 		await get_tree().process_frame
@@ -239,6 +360,10 @@ func _run_capture(args: Dictionary) -> void:
 		img = game_view.get_texture().get_image()
 	img.save_png(args["capture"])
 	print("%d fps" % Engine.get_frames_per_second())
+	print("game: state %s, level %d, t %.1f, powered %s, cells %s, ghosts %s, player %s" % [game.state, game.level_no, game.level_time, game.powered,
+		game.batteries.map(func(b): return snappedf(b.charge, 0.01)),
+		game.ghosts.filter(func(g): return is_instance_valid(g)).map(func(g): return [g.state, g.pos.snapped(Vector3.ONE * 0.1)]),
+		player.position.snapped(Vector3.ONE * 0.1)])
 	for exhibit in get_tree().get_nodes_in_group("exhibit"):
 		if "state_name" in exhibit:
 			print("%s state: %s" % [exhibit.name, exhibit.state_name])

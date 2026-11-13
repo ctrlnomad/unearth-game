@@ -9,6 +9,9 @@ const MODEL_SCALE := 0.5
 
 var force_fire := false   # capture mode holds the trigger
 var enabled := true       # false = holstered out of view and unable to fire (menu, opening sequence)
+var fire_held := false    # the trigger; scripts/main.gd sets it from the mouse or the touch FIRE button
+var firing := false       # true while rays are going out (read by scripts/game.gd)
+var _dots: Node
 var _drawn := 1.0
 var _accum := 0.0
 var _tracers: Array = []  # [to, colour, born]; drawn from the live muzzle so beams stay attached while moving
@@ -41,7 +44,9 @@ func _process(delta: float) -> void:
 	var now := Tuning.now()
 	_drawn = lerpf(_drawn, 1.0 if enabled else 0.0, 1.0 - exp(-delta * 4.0))
 	_model.visible = _drawn > 0.02
-	var firing := enabled and (force_fire or (Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and Input.is_action_pressed("fire")))
+	firing = enabled and (force_fire or fire_held)
+	if _dots == null:
+		_dots = get_tree().get_first_node_in_group("scan_dots")
 	if firing:
 		_accum += delta * float(Tuning.v("gun.rate"))
 		# Nearest first, so a closer cloud (e.g. the figure) shortens the ray
@@ -82,6 +87,10 @@ func _fire_ray(now: float, clouds: Array) -> void:
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
 	if not hit.is_empty():
 		dist = origin.distance_to(hit.position)
+		if hit.collider.has_method("add_charge"):   # a power cell
+			hit.collider.add_charge(1.0 / (float(Tuning.v("gun.rate")) * float(Tuning.v("cell.charge_time"))))
+		if _dots:
+			_dots.add(hit.position - dir * 0.02, now)
 
 	var brush: float = Tuning.v("gun.brush")
 	var penetration: float = Tuning.v("reveal.penetration")

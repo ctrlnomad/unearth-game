@@ -19,6 +19,11 @@ var cine_offset := Vector3.ZERO      # camera offset, metres (shake, falling, ge
 var cine_tilt := Vector3.ZERO        # extra camera rotation, radians (pitch, yaw, roll)
 var fov_override := 0.0              # degrees; 0 = use look.fov
 
+# Set by scripts/main.gd (touch controls) and scripts/game.gd.
+var touch_active := false            # playing by touch: no mouse capture needed
+var touch_move := Vector2.ZERO       # thumbstick, x right, y back (like Input.get_vector)
+var shake := 0.0                     # camera shake while playing
+
 
 func _ready() -> void:
 	var shape := CollisionShape3D.new()
@@ -41,9 +46,13 @@ func _ready() -> void:
 
 
 func look(relative: Vector2) -> void:
-	var sens: float = float(Tuning.v("player.mouse_sens")) * 0.01
-	rotate_y(-relative.x * sens)
-	head.rotation.x = clampf(head.rotation.x - relative.y * sens, -1.5, 1.5)
+	look_radians(relative * float(Tuning.v("player.mouse_sens")) * 0.01)
+
+
+## Turn by an angle (x = right, y = down), radians.
+func look_radians(turn: Vector2) -> void:
+	rotate_y(-turn.x)
+	head.rotation.x = clampf(head.rotation.x - turn.y, -1.5, 1.5)
 	if look_limit != Vector2.ZERO:
 		var yaw := deg_to_rad(look_limit.x)
 		var pitch := deg_to_rad(look_limit.y)
@@ -59,18 +68,19 @@ func set_aim(yaw_deg: float, pitch_deg: float) -> void:
 func _physics_process(delta: float) -> void:
 	camera.fov = fov_override if fov_override > 0.0 else float(Tuning.v("look.fov"))
 	if cinematic:
-		camera.position = cine_offset
+		camera.position = cine_offset + Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * shake * 0.3
 		camera.rotation = cine_tilt
 		return
-	camera.rotation = Vector3.ZERO
-	var playing := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+	camera.rotation = Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * shake * 0.12
+	var playing := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or touch_active
 	if not is_on_floor():
 		velocity.y -= GRAVITY * delta
 	elif playing and Input.is_action_just_pressed("jump"):
 		velocity.y = JUMP_SPEED
 
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back") if playing else Vector2.ZERO
-	var dir := (transform.basis * Vector3(input.x, 0, input.y)).normalized()
+	input = (input + touch_move).limit_length(1.0)
+	var dir := (transform.basis * Vector3(input.x, 0, input.y)).limit_length(1.0)
 	var speed: float = Tuning.v("player.run") if Input.is_action_pressed("run") else Tuning.v("player.walk")
 	var blend := 1.0 - exp(-(10.0 if is_on_floor() else 2.0) * delta)
 	velocity.x = lerpf(velocity.x, dir.x * speed, blend)

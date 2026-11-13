@@ -31,6 +31,14 @@ var ambient_key := "bay.ambient"
 var spawn_point := Vector3(0, 0, -5.5)       # where the Cleaner lands / skip-menu start
 var seat_position := Vector3(0, 0, 2.95)     # the Cleaner's place in the cabin
 
+# Read by scripts/game.gd.
+var level_name := "THE LOADING BAY"
+var ambient_boost := 0.0
+var exit_point := Vector3(0, 0, -53.5)
+var bounds := Rect2(-12.5, -55.5, 25.0, 55.0)
+var battery_spots: Array[Vector3] = [Vector3(7, 0, -11), Vector3(10.6, 0, -28.8), Vector3(-10.5, 0, -47)]
+var ghost_spawns: Array[Vector3] = [Vector3(0, 0, -51.5)]
+
 # Driven by opening.gd.
 var cabin_power := 1.0                       # 0 = cabin lights dead
 
@@ -57,6 +65,14 @@ var _chunks: Array = []                      # [node, velocity, spin]
 var _boom_t := 0.0
 var _clock := 0.0
 var _flicker := 1.0
+var _cargo_door: Node3D                      # the far door: opens when the power is back
+var _emergency_lights: Array[OmniLight3D] = []
+var _power := 0.0
+var _vent := 0.0
+var _stage := 0
+var _boom_said := false
+var _tease: Node3D                           # the shape in the dust when the vents start
+var _tease_t := 0.0
 
 
 func _ready() -> void:
@@ -76,6 +92,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	_clock += delta
 	_haze.density = Tuning.v("bay.haze")
+	_vent = move_toward(_vent, _power, delta / 6.0)
 	_sun.light_energy = Tuning.v("bay.sun")
 	var elevation := deg_to_rad(float(Tuning.v("bay.sun_height")))
 	var dir := Vector3(1, 0, -0.25).normalized() * cos(elevation) + Vector3.DOWN * sin(elevation)
@@ -92,6 +109,7 @@ func _process(delta: float) -> void:
 	_motes_mat.set_shader_parameter("drift", Tuning.v("bay.mote_drift"))
 	_motes_mat.set_shader_parameter("pulse", Tuning.v("bay.mote_pulse"))
 	_motes_mat.set_shader_parameter("clock", _clock * float(Tuning.v("bay.mote_speed")))
+	_motes_mat.set_shader_parameter("vent", _vent)
 
 	if _cabin:
 		_update_cabin(delta)
@@ -141,6 +159,55 @@ func depart() -> void:
 	_departed = 0.0
 
 
+## 0 = dark, 1 = emergency power on: red lights, and the vents pull the motes out.
+func set_power(k: float) -> void:
+	_power = k
+	var pulse := 0.75 + 0.25 * sin(_clock * 3.0)
+	for light in _emergency_lights:
+		light.light_energy = 3.0 * k * pulse
+	ambient_boost = 0.25 * k
+
+
+## 0 = shut, 1 = open: the cargo door slides up.
+func set_exit_door(open: float) -> void:
+	_cargo_door.position.y = open * 10.5
+
+
+## Level 1 has no threat: the player learns the scanner and the cells.
+func game_update(game: Node, _delta: float) -> void:
+	if not game.powered:
+		if _stage == 0 and game.level_time > 1.5:
+			_stage = 1
+			game.hint("Hold FIRE to run the scanner. Its rays show you the room." if game.is_touch()
+					else "Hold the left mouse button to run the scanner. Its rays show you the room.", 8.0)
+		if _stage == 1 and game.level_time > 12.0:
+			_stage = 2
+			game.hint("Find the power cells: yellow, with a red light. Hold the rays on one to charge it.", 9.0)
+	if _exploded and not _boom_said:
+		_boom_said = true
+		game.play("boom")
+		game.shake(0.3)
+		game.say("...That was my ride home.", 4.0)
+	if is_instance_valid(_tease) and game.level_time > _tease_t + 2.2:
+		_tease.vent()
+
+
+func cell_filled(game: Node, count: int) -> void:
+	if count == 1:
+		game.say("One cell charged. They hold what you give them.", 4.0)
+	elif count == 2:
+		game.say("One more.", 2.5)
+
+
+func power_restored(game: Node) -> void:
+	_tease = game.spawn_ghost(ghost_spawns[0], "idle")
+	_tease.flare = 1.0
+	_tease.hold_flare = true
+	_tease_t = game.level_time
+	game.say("Emergency power is on. The vents are pulling the dust out.", 4.5)
+	game.say("...For a second the dust had a shape.", 4.0)
+
+
 # ------------------------------------------------------------------ bay ----
 
 func _build_environment() -> void:
@@ -154,16 +221,17 @@ func _build_environment() -> void:
 	environment.fog_light_color = Color(0.012, 0.018, 0.026)
 	# Haze, so the light from the window reads as shafts.
 	# Only inside the bay (a FogVolume): haze outside would hide space behind a glowing wall.
-	environment.volumetric_fog_enabled = true
+	environment.volumetric_fog_enabled = RenderingServer.get_current_rendering_method() != "gl_compatibility"
 	environment.volumetric_fog_density = 0.0
 	_haze = FogMaterial.new()
 	_haze.albedo = Color(0.75, 0.86, 1.0)
-	var haze_volume := FogVolume.new()
-	haze_volume.shape = RenderingServer.FOG_VOLUME_SHAPE_BOX
-	haze_volume.size = Vector3(36, 20, LENGTH)
-	haze_volume.position = Vector3(0, 10, -LENGTH * 0.5)
-	haze_volume.material = _haze
-	add_child(haze_volume)
+	if RenderingServer.get_current_rendering_method() != "gl_compatibility":   # no fog volumes in the web renderer
+		var haze_volume := FogVolume.new()
+		haze_volume.shape = RenderingServer.FOG_VOLUME_SHAPE_BOX
+		haze_volume.size = Vector3(36, 20, LENGTH)
+		haze_volume.position = Vector3(0, 10, -LENGTH * 0.5)
+		haze_volume.material = _haze
+		add_child(haze_volume)
 	environment.volumetric_fog_anisotropy = 0.15
 	environment.volumetric_fog_length = 90.0
 	environment.volumetric_fog_ambient_inject = 0.0
@@ -230,10 +298,14 @@ func _build_bay() -> void:
 	# Far wall: the big cargo door, shut.
 	box(self, Vector3(0, 10, z0 - 0.5), Vector3(40, 22, 1), panel)
 	var big := Vector2(0, 4.7)
-	prism(self, hexagon(big, 5.0), z0, z0 + 0.2, material("dark", Color(1.2, 1.2, 1.25)), false)
+	prism(self, hexagon(big, 4.9), z0, z0 + 0.03, glow_material(Color(0.3, 0.5, 0.55)), false)   # light beyond the door
+	_cargo_door = prism(self, hexagon(big, 5.0), z0 + 0.03, z0 + 0.2, material("dark", Color(1.2, 1.2, 1.25)), false)
+	for spot: Vector3 in [Vector3(0, 13, -10), Vector3(0, 13, -28), Vector3(0, 13, -46)]:
+		var red := _light(spot, Color(1.0, 0.16, 0.08), 0.0, 34.0)
+		_emergency_lights.append(red)
 	hex_ring(self, big, 5.0, 0.6, z0, z0 + 0.45, hazard)
 	hex_ring(self, big, 5.6, 0.7, z0, z0 + 0.3, dark)
-	box(self, Vector3(0, 4.7, z0 + 0.24), Vector3(9.9, 0.12, 0.1), material("dark", Color(0.3, 0.3, 0.3)), false)
+	box(_cargo_door, Vector3(0, 4.7, z0 + 0.24), Vector3(9.9, 0.12, 0.1), material("dark", Color(0.3, 0.3, 0.3)), false)
 	box(self, Vector3(0, 10.4, z0 + 0.3), Vector3(0.5, 0.25, 0.2), glow_material(Color(1.0, 0.08, 0.04)), false)
 	_light(Vector3(0, 10.2, z0 + 1.6), Color(1.0, 0.1, 0.05), 1.4, 16.0)
 
