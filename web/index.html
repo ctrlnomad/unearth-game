@@ -91,7 +91,8 @@ button.b:focus-visible, #fire:focus-visible { outline: 2px solid var(--gas); out
 <div id="menu">
   <div class="tag">UNEARTH <b id="ver"></b> &middot; press the green START button by the door</div>
   <div class="btns">
-    <button class="b" id="bLvl2">Start at level 2</button>
+    <span id="lvls" class="btns"></span>
+    <button class="b" id="bSens">Look speed</button>
     <button class="b" id="bLog">Version log</button>
   </div>
 </div>
@@ -102,8 +103,8 @@ button.b:focus-visible, #fire:focus-visible { outline: 2px solid var(--gas); out
 </div></div>
 <div id="end" class="sheet" hidden><div class="in">
   <h1>POWER RESTORED</h1>
-  <p>Reception is on emergency power and the vents have cleared the gas. The door to the labs is open.</p>
-  <p class="muted">This is the end of version <span id="endVer"></span>. Next: the Lab, where the Cleaner learns what Omni-23 did to the people who made it.</p>
+  <p>The Lab is on emergency power. You have the projector, and you know what Omni-23 did to the people who made it.</p>
+  <p class="muted">This is the end of version <span id="endVer"></span>. Next: the Canteen. You can already hear the cutlery.</p>
   <button class="b" id="bEnd">Back to the pod</button>
 </div></div>
 
@@ -111,8 +112,16 @@ button.b:focus-visible, #fire:focus-visible { outline: 2px solid var(--gas); out
 <script>
 (() => {
 'use strict';
-const VERSION = '0.1';
+const VERSION = '0.3';
 const CHANGELOG = [
+  { v: '0.3', date: '2026-11-14', title: 'The Lab', notes: [
+    'Development is back on this browser version; the Godot build is parked.',
+    'Level 3, the Lab: charge the console cell and watch the recording of the Omni-23 test play out in the chamber.',
+    'The projector, the lab\'s own gun: a wider violet beam that pushes ghosts back, lights them for longer and freezes them sooner.',
+    'After you take it, the lab staff come for you: more ghosts at once than before.',
+    'Mouse: works in browsers that will not capture the pointer (move to look, hold the button to fire).',
+    'Menu: a look speed setting, and a button for every level you have reached.',
+  ] },
   { v: '0.1', date: '2026-11-13', title: 'First browser build', notes: [
     'The game now runs in the browser with touch controls: left thumb moves, right thumb looks, hold FIRE to run the scanner.',
     'Menu inside the single-use pod, with the maintenance request on the terminal and a START button by the door.',
@@ -405,6 +414,13 @@ const GUN_REST = new THREE.Vector3(0.25, -0.22, -0.62);
 gun.scale.setScalar(0.5);
 gun.position.copy(GUN_REST);
 const muzzle = new THREE.PointLight(0xffa550, 0, 12, 1.6); muzzle.position.set(0.15, -0.1, -0.7); camera.add(muzzle);
+let gun2 = false;   // the projector, taken in the Lab: wider, pushes ghosts back, lights them for longer
+function setGun(two) {
+  gun2 = two;
+  dotMat.uniforms.uColor.value.setRGB(two ? 0.72 : 1.0, two ? 0.42 : 0.62, two ? 1.0 : 0.22);
+  tracers.material.color.set(two ? 0xb070ff : 0xffa040); muzzle.color.set(two ? 0xb080ff : 0xffa550);
+  gun.children[0].material = two ? mat('panel', 0xb0b8d0, 0x101018) : mat('rust', 0xb0a090, 0x14110e);
+}
 
 // ---------------------------------------------------------------- ghosts (gas wearing a person's shape)
 const GPARTS = [
@@ -413,10 +429,11 @@ const GPARTS = [
   { c: [-0.12, 0.45, 0], s: [0.17, 0.9, 0.19] }, { c: [0.12, 0.45, 0], s: [0.17, 0.9, 0.19] },
 ];
 const GN = 900;
-const ghostVS = `attribute float part, seed, hit; uniform float uTime, uPhase, uSwing, uFlare, uGlitch, uDissolve, uBase; varying float vV; varying float vS;
+const ghostVS = `attribute float part, seed, hit; uniform float uTime, uPhase, uSwing, uFlare, uGlitch, uDissolve, uBase, uArm, uHold, uFade; varying float vV; varying float vS;
   void main(){ vec3 p = position; float a = 0., py = 1.48; float sw = sin(uPhase) * uSwing;
     if (part > 1.5 && part < 2.5) a = sw; else if (part > 2.5 && part < 3.5) a = -sw;
     else if (part > 3.5 && part < 4.5) { a = -sw * 1.1; py = .9; } else if (part > 4.5) { a = sw * 1.1; py = .9; }
+    if (part > 2.5 && part < 3.5 && uArm > .01) a = -uArm;
     float c = cos(a), s = sin(a); p.y -= py; p = vec3(p.x, p.y * c - p.z * s, p.y * s + p.z * c); p.y += py;
     float sd = seed * 100.;
     p += .028 * vec3(sin(uTime * 3. + sd), sin(uTime * 2.3 + sd * 1.7), cos(uTime * 2.7 + sd * 2.9));
@@ -424,10 +441,10 @@ const ghostVS = `attribute float part, seed, hit; uniform float uTime, uPhase, u
     p.x += step(.55, band) * uGlitch * .22 * (fract(sd * 7.1) - .5) * 2.;
     vec3 away = vec3((fract(sd * 13.) - .5) * 3.5, 3. + 5. * fract(sd * 5.), (fract(sd * 3.) - .5) * 3.5);
     p += away * uDissolve * uDissolve;
-    float v = 1. - smoothstep(1.4, 3.2, uTime - hit);
+    float v = 1. - smoothstep(uHold, uHold + uFade, uTime - hit);
     vV = max(max(v, uFlare), uBase) * (1. - uDissolve); vS = fract(sd * 9.);
     vec4 mv = modelViewMatrix * vec4(p, 1.); gl_Position = projectionMatrix * mv; gl_PointSize = clamp(9. / -mv.z, 1., 3.); }`;
-const ghostFS = 'precision mediump float; varying float vV; varying float vS; void main(){ if (vV < .02) discard; gl_FragColor = vec4(mix(vec3(.1, .55, 1.), vec3(.35, 1., .95), vS) * vV * (.55 + .45 * vS), 1.); }';
+const ghostFS = 'precision mediump float; uniform float uTint; varying float vV; varying float vS; void main(){ if (vV < .02) discard; vec3 gas = mix(vec3(.1, .55, 1.), vec3(.35, 1., .95), vS); vec3 rec = mix(vec3(1., .62, .3), vec3(1., .9, .7), vS); gl_FragColor = vec4(mix(gas, rec, uTint) * vV * (.55 + .45 * vS), 1.); }';
 function ghostGeometry() {
   const pos = new Float32Array(GN * 3), part = new Float32Array(GN), seed = new Float32Array(GN), hit = new Float32Array(GN).fill(-1e5);
   const areas = GPARTS.map(p => p.s[0] * p.s[1] + p.s[1] * p.s[2] + p.s[0] * p.s[2]), total = areas.reduce((a, b) => a + b);
@@ -449,7 +466,7 @@ function ghostGeometry() {
 class Ghost {
   constructor(x, z, state = 'follow') {
     this.geo = ghostGeometry(); this.rest = this.geo.attributes.position.array; this.hit = this.geo.attributes.hit.array;
-    this.u = { uTime: { value: 0 }, uPhase: { value: 0 }, uSwing: { value: 0 }, uFlare: { value: 0 }, uGlitch: { value: 0 }, uDissolve: { value: 0 }, uBase: { value: 0 } };
+    this.u = { uTime: { value: 0 }, uPhase: { value: 0 }, uSwing: { value: 0 }, uFlare: { value: 0 }, uGlitch: { value: 0 }, uDissolve: { value: 0 }, uBase: { value: 0 }, uArm: { value: 0 }, uHold: { value: 1.4 }, uFade: { value: 1.8 }, uTint: { value: 0 } };
     this.mesh = new THREE.Points(this.geo, new THREE.ShaderMaterial({ uniforms: this.u, vertexShader: ghostVS, fragmentShader: ghostFS, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
     this.mesh.frustumCulled = false; this.mesh.position.set(x, 0, z); G.add(this.mesh);
     this.x = x; this.z = z; this.yaw = 0; this.state = state; this.phase = Math.random() * 6; this.beam = 0; this.frozen = 0; this.immune = 0;
@@ -458,8 +475,10 @@ class Ghost {
   update(dt, firing) {
     const u = this.u; u.uTime.value = now;
     if (!this.holdFlare) this.flare = Math.max(0, this.flare - dt / 3.5);
-    u.uFlare.value = this.flare;
+    u.uFlare.value = this.flare; u.uHold.value = gun2 ? 5 : 1.4; u.uFade.value = gun2 ? 4 : 1.8;
+    if (this.state === 'actor') { u.uPhase.value = this.phase; this.mesh.position.set(this.x, 0, this.z); this.mesh.rotation.y = this.yaw; return; }   // a figure in the recording: scripted by the level
     if (this.state === 'vent') { this.dissolve = Math.min(1, this.dissolve + dt / 2.6); u.uDissolve.value = this.dissolve; u.uBase.value = 0.8; if (this.dissolve >= 1) { this.dead = true; G.remove(this.mesh); this.geo.dispose(); } return; }
+    const hitNow = this.struck;
     this.beam = this.struck ? this.beam + dt : Math.max(0, this.beam - dt * 0.6); this.struck = false;
     this.immune = Math.max(0, this.immune - dt);
     let speed = 0;
@@ -469,20 +488,20 @@ class Ghost {
     } else {
       u.uGlitch.value = Math.max(0, u.uGlitch.value - dt * 3); u.uBase.value = Math.max(0, u.uBase.value - dt * 0.5);
       if (this.state === 'follow') {
-        if (this.beam > 0.75 && this.immune <= 0) { this.state = 'frozen'; this.frozen = 3.6; A.freeze(); }
+        if (this.beam > (gun2 ? 0.5 : 0.75) && this.immune <= 0) { this.state = 'frozen'; this.frozen = gun2 ? 4.5 : 3.6; A.freeze(); }
         else {
           const dx = P.x - this.x, dz = P.z - this.z, d = Math.hypot(dx, dz) || 1;
-          speed = firing ? 1.85 : 1.0;
+          speed = (gun2 && hitNow) ? -2.6 : firing ? 1.85 : 1.0;   // the projector pushes it back
           this.x += dx / d * speed * dt; this.z += dz / d * speed * dt; this.yaw = Math.atan2(dx, dz);
         }
       } else if (this.state === 'idle') { this.yaw = Math.atan2(P.x - this.x, P.z - this.z); }
     }
-    this.phase += speed * dt * 3.2; u.uPhase.value = this.phase;
-    u.uSwing.value = lerp(u.uSwing.value, speed > 0 ? 0.55 : 0.04, Math.min(1, dt * 5));
+    this.phase += Math.abs(speed) * dt * 3.2; u.uPhase.value = this.phase;
+    u.uSwing.value = lerp(u.uSwing.value, speed !== 0 ? 0.55 : 0.04, Math.min(1, dt * 5));
     this.mesh.position.set(this.x, 0, this.z); this.mesh.rotation.y = this.yaw;
   }
   ray(ox, oy, oz, dx, dy, dz, tmax) {
-    if (this.state === 'vent') return;
+    if (this.state === 'vent' || this.state === 'actor') return;
     const c = Math.cos(this.yaw), s = Math.sin(this.yaw), rx = ox - this.x, rz = oz - this.z;
     const lox = rx * c - rz * s, loz = rx * s + rz * c, ldx = dx * c - dz * s, ldz = dx * s + dz * c;
     const t = rayBox(GBOX, lox, oy, loz, 1 / (ldx || 1e-9), 1 / (dy || 1e-9), 1 / (ldz || 1e-9));
@@ -713,6 +732,120 @@ function buildReception() {
   L = lv;
 }
 
+function buildLab() {
+  clearLevel(); scene.fog.density = 0.03;
+  const wall = mat('panel', 0x7f888c), floor = mat('deck', 0x8a8a8a), dark = mat('dark', 0xb0b0b0), pan = mat('panel', 0x9aa0a4);
+  shell(-9, 9, -30, 0, 5, wall, floor, dark);
+  // The partition between the observation room (z > -14) and the test chamber: a window, and a door on the right.
+  const pz = -14, part = (x0, x1, y0, y1) => box(x1 - x0, y1 - y0, 0.4, (x0 + x1) / 2, (y0 + y1) / 2, pz, wall);
+  part(-9, -6, 0, 5); part(-6, 3, 0, 1); part(-6, 3, 3.6, 5); part(3, 5.5, 0, 5); part(5.5, 7.5, 2.6, 5); part(7.5, 9, 0, 5);
+  colliders.push({ min: [-6, 1, pz - 0.1], max: [3, 3.6, pz + 0.1], glass: true });
+  const cdoorMesh = box(2, 2.6, 0.3, 6.5, 1.3, pz, mat('hazard', 0xb0b0b0)); const cdoorCol = colliders[colliders.length - 1];
+  for (const x of [-6, -3, 0, 3]) box(0.14, 2.6, 0.14, x, 2.3, pz + 0.15, dark, { noCol: true });
+  // observation room
+  box(6, 1, 1, -1.5, 0.5, -12.7, pan); box(6.2, 0.08, 1.2, -1.5, 1.04, -12.7, dark, { noCol: true });
+  const screen = box(0.7, 0.05, 0.4, -3.6, 1.1, -12.6, basic(0x050a0a), { noCol: true });   // the console's display, flat on the desk so it does not block the window
+  box(0.7, 0.9, 0.7, -3, 0.45, -11.2, dark); box(0.7, 0.9, 0.7, 0.4, 0.45, -11, dark);
+  for (let z = -3; z > -11; z -= 1.9) box(0.7, 2.2, 1.5, -8.6, 1.1, z, pan);
+  box(2.2, 0.9, 1, 4.5, 0.45, -5, mat('cargo', 0x70725a)); box(1, 0.8, 1, -4.5, 0.4, -6, mat('rust', 0xa09a90));
+  // test chamber: the four Omni-23 tanks along the back wall, burst; the scorch where the cell went up
+  for (const x of [-7, -3.8, 3.8, 7]) {
+    const t = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.75, 3.2, 10), mat('rust', 0x9a9690)); t.position.set(x, 1.6, -28.8); G.add(t);
+    colliders.push({ min: [x - 0.75, 0, -29.55], max: [x + 0.75, 3.2, -28.05] });
+    box(0.9, 0.5, 0.06, x, 2.1, -28.02, basic(0x020304), { noCol: true });
+    const lbl = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.34), new THREE.MeshBasicMaterial({ map: textTex([{ t: 'OMNI-23', px: 40 }], 200, 60, 40, '#d8c890'), transparent: true, color: 0x8a8068 })); lbl.position.set(x, 1.35, -28.03); G.add(lbl);
+  }
+  box(2.6, 0.04, 2.6, 0, 0.02, -26, mat('dark', 0x202020), { noCol: true }); box(0.5, 0.3, 0.5, 0.3, 0.15, -26.2, mat('rust', 0x403830), { noCol: true });
+  box(1.2, 0.5, 0.8, -6.5, 0.25, -24, dark); box(0.9, 1.6, 0.5, 8.3, 0.8, -20, pan);
+  hexDoor(0, 2.1, 0, 1.7, -1);
+  const door = hexDoor(0, 2.1, -30, 1.8, 1);
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(7, 2), new THREE.MeshBasicMaterial({ map: textTex([{ t: 'LAB 1', px: 62 }, { t: 'OMNI PROGRAMME', px: 34, bold: false }], 512, 146, 62, '#c9d2d4'), transparent: true, color: 0x596266 }));
+  sign.position.set(8.95, 3.2, -7); sign.rotation.y = -Math.PI / 2; G.add(sign);
+  // the projector, on the chamber floor where it was dropped
+  const item = new THREE.Group(); item.position.set(-3, 0.25, -21); item.visible = false; G.add(item);
+  { const b = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.12, 0.14), basic(0xb890ff)); item.add(b); const c = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.2, 0.1), basic(0x6a50a0)); c.position.set(-0.15, -0.12, 0); item.add(c); }
+  const itemLight = new THREE.PointLight(0xa070ff, 0, 6, 1.5); itemLight.position.set(-3, 0.8, -21); G.add(itemLight);
+  // the gas, before it had a shape: a spiral of points (the recording shows it)
+  const VN = 700, vp = new Float32Array(VN * 3), vs = new Float32Array(VN);
+  for (let i = 0; i < VN; i++) { vp[i * 3 + 1] = Math.random(); vs[i] = Math.random(); }
+  const vg = new THREE.BufferGeometry(); vg.setAttribute('position', new THREE.BufferAttribute(vp, 3)); vg.setAttribute('seed', new THREE.BufferAttribute(vs, 1));
+  const vortex = new THREE.Points(vg, new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 }, uAmt: { value: 0 }, uTight: { value: 0 } },
+    vertexShader: `attribute float seed; uniform float uTime, uAmt, uTight; varying float vA; varying float vS;
+      void main(){ float h = position.y, s = seed * 100.; float ang = s + uTime * (1.6 + fract(s * 3.) * 1.5) + h * 9.;
+        float r = mix(.22 + .95 * abs(h - .5) * 2. + .18 * fract(s * 7.), .22, uTight);
+        vec3 p = vec3(cos(ang) * r, .2 + h * mix(2.6, 1.8, uTight), sin(ang) * r);
+        vA = uAmt * (.4 + .6 * fract(s * 11.)); vS = fract(s * 9.);
+        vec4 mv = modelViewMatrix * vec4(p, 1.); gl_Position = projectionMatrix * mv; gl_PointSize = clamp(9. / -mv.z, 1., 3.); }`,
+    fragmentShader: 'precision mediump float; varying float vA; varying float vS; void main(){ if (vA < .02) discard; gl_FragColor = vec4(mix(vec3(.1, .5, 1.), vec3(.35, 1., .95), vS) * vA, 1.); }',
+    blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
+  vortex.frustumCulled = false; vortex.position.set(2.5, 0, -21); G.add(vortex);
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(1, 0.05, 0.05), basic(0xc090ff, { transparent: true, opacity: 0.9 })); beam.visible = false; G.add(beam);
+  const boom = new THREE.PointLight(0x9fe8ff, 0, 30, 1.2); boom.position.set(0, 1.5, -26); G.add(boom);
+  const amb = new THREE.AmbientLight(0x263038, 0.32); G.add(amb);
+  const lamp = new THREE.PointLight(0x9ad8e6, 0, 9, 1.4); lamp.position.set(-1.5, 2.4, -11.5); G.add(lamp);
+  const emer = emergency([[-4, 4.6, -5], [4, 4.6, -9], [-4, 4.6, -20], [4, 4.6, -25]], 0xff3a22);
+  const SP = [[-8, -28], [8, -16.5], [-8, -2], [8, -2], [8, -28], [-8, -16]];
+  const actor = (x, z, yaw, tint) => { const g = new Ghost(x, z, 'actor'); g.yaw = yaw; g.u.uTint.value = tint; g.u.uGlitch.value = 0.12; lv.ghosts.push(g); return g; };
+  const kill = g => { if (g && !g.dead) { g.dead = true; G.remove(g.mesh); g.geo.dispose(); } };
+  const lv = baseLevel({
+    id: 3, name: 'THE LAB', bounds: [-9, 9, -30, 0], spawn: { x: 0, z: -2, yaw: 0 }, door, emer, amb, ambOn: 0.7, SP,
+    motes: motes(200, -8, 8, 4.6, -29, -1), stage: 0, play: -1, done: {}, released: false, releaseT: 0, doorT: 0,
+    farSpawn() { let best = SP[0], bd = -1; for (const s of SP) { let d = Math.hypot(s[0] - P.x, s[1] - P.z); for (const g of this.ghosts) d = Math.min(d, Math.hypot(s[0] - g.x, s[1] - g.z) * 1.5); if (d > bd) { bd = d; best = s; } } return best; },
+    once(k, cond) { if (!cond || this.done[k]) return false; this.done[k] = true; return true; },
+    update(dt) {
+      const st = now - this.t0;
+      vortex.material.uniforms.uTime.value = now;
+      if (this.once('in', st > 2)) say('The lab. One cell by the console. Start there.', 4.5);
+      if (this.play < 0 && this.batteries[0].done) { this.play = now; lamp.intensity = 0.8; screen.material.color.set(0x1f6f64); setObj('LEVEL 3 · THE LAB', 'Watch the recording through the glass'); hud.subQ.length = 0; hud.subUntil = 0; }
+      if (this.play >= 0 && !this.done.over) this.recording(now - this.play, dt);
+      // after the recording: the chamber door, the projector, then the staff
+      if (this.done.over && this.doorT < 1) { this.doorT = Math.min(1, this.doorT + dt / 1.6); cdoorMesh.position.y = 1.3 + smooth(this.doorT) * 2.7; }
+      if (item.visible) { item.rotation.y += dt * 1.5; itemLight.intensity = 0.7 + 0.3 * Math.sin(now * 5);
+        if (Math.hypot(P.x - item.position.x, P.z - item.position.z) < 1.3) { item.visible = false; itemLight.intensity = 0; setGun(true); A.cellFull(); FX.flash = 0.15; this.releaseT = now + 3.5;
+          say('The projector. Lab issue: wider, and it pushes them back.', 4.5); setObj('LEVEL 3 · THE LAB', 'Restore emergency power: charge the cells'); } }
+      if (this.releaseT && !this.released && now > this.releaseT) { this.released = true; A.sting(); FX.shake = 0.12;
+        for (let i = 0; i < 3; i++) { const sp = this.farSpawn(); const g = new Ghost(sp[0], sp[1]); g.flare = 1; this.ghosts.push(g); }
+        say('The recording was loud. The staff heard it.', 4); hint('Hold the beam on them to push them back. Charge the three cells that are left.', 9); }
+    },
+    recording(t, dt) {   // the Omni-23 test, replayed in the chamber as figures of light
+      const R = this, line = (text, d) => { hud.subQ.length = 0; hud.subUntil = 0; say(text, d); };   // recording lines replace whatever is showing, so they stay in step with the figures
+      if (R.once('r0', t > 0.5)) { A.click(); line('RECORDING · "Containment test fourteen. Valve one is open. Omni-23 is in the room."', 5); R.john = actor(-3, -21, Math.PI / 2, 1); }
+      if (R.john && !R.john.dead) R.john.u.uBase.value = 0.65 + 0.2 * Math.sin(now * 23) * Math.sin(now * 7.3);
+      const vu = vortex.material.uniforms;
+      if (t < 6.5) vu.uAmt.value = Math.min(0.9, t / 2);
+      if (t > 5 && t < 8.5) vu.uTight.value = smooth((t - 5) / 3);
+      if (R.once('r1', t > 6.2)) { line('"It is pulling together. It is... is it standing up?"', 4); R.copy = actor(2.5, -21, -Math.PI / 2, 0); R.copy.u.uGlitch.value = 0; }
+      if (t > 6.2 && t < 9) { vu.uAmt.value = 0.9 * (1 - smooth((t - 6.5) / 2)); R.copy.u.uBase.value = 0.85 * smooth((t - 6.2) / 2.2); }
+      if (R.once('r2', t > 10)) line('"Raise your arm, John."', 3);
+      if (t > 10.5 && t < 16.5) { R.john.u.uArm.value = 2.4 * smooth((t - 10.5) / 1.2) * (1 - smooth((t - 15) / 1.2)); R.copy.u.uArm.value = 2.4 * smooth((t - 11.4) / 1.5); }
+      if (R.once('r3', t > 13.2)) line('"It is copying him. A little late, but it is copying him."', 4);
+      if (R.once('r4', t > 17)) line('"John put his arm down. It did not."', 3.5);
+      if (t > 18.5 && t < 22) { R.copy.x = lerp(2.5, -0.6, smooth((t - 18.5) / 3.5)); R.copy.phase += dt * 3; R.copy.u.uSwing.value = 0.5; }
+      if (R.once('r5', t > 19.5)) line('"It is walking. John, that is not you doing that, is it?"', 4);
+      if (t > 21.6 && t < 23.6) R.john.u.uArm.value = 1.5 * smooth((t - 21.6) / 0.5);
+      if (R.once('r6', t > 22.2)) { A.freeze(); A.burst(0.5, 0.25, 'bandpass', 1800, 900); beam.visible = true; beam.rotation.y = 0; beam.scale.x = 2.2; beam.position.set(-1.75, 1.42, -21); R.copy.u.uGlitch.value = 1; R.copy.u.uSwing.value = 0.04; line('"Projector on it. It has stopped. It is holding."', 4); }
+      if (t > 22.7 && t < 33) beam.visible = false;
+      if (t > 23.6 && t < 27) { R.john.u.uArm.value = 1.5 * (1 - smooth((t - 23.6) / 0.6)); R.john.yaw = lerp(Math.PI / 2, 0, smooth((t - 24.2) / 1.2)); }
+      if (R.once('r7', t > 25)) line('"He is looking at us through the glass. He is laughing."', 3.5);
+      if (R.once('r8', t > 28.2)) { A.sting(); FX.shake = 0.1; R.copy.u.uGlitch.value = 0.2; }
+      if (t > 28.2 && t < 29.4) { R.copy.x = lerp(-0.6, -3, smooth((t - 28.2) / 1.0)); R.copy.u.uBase.value = 0.85 * (1 - smooth((t - 28.9) / 0.5)); }
+      if (t > 29 && t < 31) R.john.u.uTint.value = 1 - smooth((t - 29) / 1.5);
+      if (R.once('r9', t > 29.6)) { kill(R.copy); line('"It went under the suit. John? John, respond."', 4); }
+      if (t > 31.5 && t < 34) { R.john.yaw = lerp(0, Math.PI - 0.54, smooth((t - 31.5) / 1.5)); R.john.u.uArm.value = 1.5 * smooth((t - 32.6) / 0.6); }
+      if (R.once('r10', t > 33.2)) { A.tone(180, 1400, 3.2, 0.12, 'triangle'); beam.visible = true; beam.rotation.y = Math.atan2(5, 3); beam.scale.x = 5.6; beam.position.set(-1.5, 1.2, -23.5); line('"He is charging the cell. He will not stop. It is going to..."', 3.4); }
+      if (R.once('r11', t > 36.4)) { beam.visible = false; A.boom(); FX.flash = 0.6; FX.shake = 0.5; boom.intensity = 6; kill(R.john); }
+      if (t > 36.4) boom.intensity = Math.max(0, boom.intensity - dt * 5);
+      if (R.once('r12', t > 38.5)) { line('RECORDING ENDS', 2.5); say('That is why there are no bodies. The gas is wearing them.', 4.5); }
+      if (R.once('over', t > 40.5)) { boom.intensity = 0; lamp.intensity = 0.3; screen.material.color.set(0x0a2a26); A.door(); const i = colliders.indexOf(cdoorCol); if (i >= 0) colliders.splice(i, 1); item.visible = true; setObj('LEVEL 3 · THE LAB', 'Take the projector from the test chamber'); }
+    },
+    onFull(n) { if (this.released && n < this.batteries.length) { const sp = this.farSpawn(); this.ghosts.push(new Ghost(sp[0], sp[1])); if (n === 2) say('More of them. Everyone who worked here.', 3.5); } },
+    onPower() { say('Emergency power. The vents are taking them.', 4); },
+  });
+  lv.batteries = [battery(-6.6, -11.4), battery(7.2, -27), battery(-7.6, -17), battery(7.6, -2.6)];
+  L = lv;
+}
+
 // ---------------------------------------------------------------- game state
 const FX = { fade: 0, fadeTo: 1, cyan: 0, flash: 0, shake: 0, prox: 0 };
 let state = 'menu', stateT = 0, firing = false, touchUI = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
@@ -725,23 +858,25 @@ function showPlayUI(on) {
 }
 function toMenu() {
   state = 'menu'; stateT = 0; buildCabin(); gun.visible = false; FX.fade = 0; FX.fadeTo = 1; FX.cyan = 0; hud.subQ.length = 0; hud.subUntil = 0;
-  showPlayUI(false); $('menu').hidden = false; $('end').hidden = true; $('bLvl2').hidden = save.get() < 2;
+  showPlayUI(false); $('menu').hidden = false; $('end').hidden = true; setGun(false);
+  $('lvls').innerHTML = ''; for (let n = 2; n <= Math.min(3, save.get()); n++) { const b = document.createElement('button'); b.className = 'b'; b.textContent = 'Level ' + n; b.addEventListener('click', () => { A.init(); $('menu').hidden = true; state = 'transition'; goLevel(n); }); $('lvls').appendChild(b); }
   A.set(A.gun, 0); A.set(A.chg, 0); A.set(A.rumbleG, 0);
 }
 function startLevel(n, fromIntro) {
-  if (n === 1) buildBay(); else buildReception();
+  if (n === 1) buildBay(); else if (n === 2) buildReception(); else buildLab();
+  setGun(n > 3);
   save.set(Math.max(save.get(), n));
   L.t0 = now; P.x = L.spawn.x; P.z = L.spawn.z; P.yaw = L.spawn.yaw; P.pitch = 0; P.roll = 0;
   state = 'play'; stateT = 0; gun.visible = true; P.lock = true; P.getUp = fromIntro ? 0 : 1; P.getUpDur = fromIntro ? 4.2 : 0.01;
   FX.fade = 0; FX.fadeTo = 1; FX.cyan = 0;
-  showPlayUI(true); setObj('LEVEL ' + n + ' · ' + L.name, 'Restore emergency power: charge the cells'); setCells();
+  showPlayUI(true); setObj('LEVEL ' + n + ' · ' + L.name, n === 3 ? 'Charge the cell by the console' : 'Restore emergency power: charge the cells'); setCells();
   hud.subQ.length = 0; hud.subUntil = 0;
 }
 function goLevel(n) { pending = { n, t: 0 }; FX.fadeTo = 0; P.lock = true; }
 function powerOn() {
   L.powered = true; L.poweredT = now; A.powerOn(); A.vents(); FX.shake = 0.15; L.onPower();
   for (const g of L.ghosts) if (g !== L.tease) g.vent();
-  setObj('LEVEL ' + L.id + ' · ' + L.name, L.id === 1 ? 'Power restored. Go through the cargo door' : 'Power restored. Go through the lab door');
+  setObj('LEVEL ' + L.id + ' · ' + L.name, L.id === 1 ? 'Power restored. Go through the cargo door' : 'Power restored. Go through the open door');
 }
 function caught() {
   if (state !== 'play') return; state = 'caught'; stateT = 0; P.lock = true; A.caught(); A.set(A.gun, 0); A.set(A.chg, 0);
@@ -757,10 +892,11 @@ function afterCaught() {
 
 // ---------------------------------------------------------------- input
 const keys = {}, ptrs = new Map();
-let mouseFire = false, joy = { x: 0, y: 0 }, tap = null;
+let mouseFire = false, joy = { x: 0, y: 0 }, tap = null, freeMouse = false;   // freeMouse: the browser will not capture the pointer, so the mouse looks without it
 addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'Space') e.preventDefault(); if (state === 'menu' && (e.code === 'Enter')) pressStart(); });
 addEventListener('keyup', e => { keys[e.code] = false; });
 function look(dx, dy, k) {
+  k *= SENS[sensI][1];
   P.yaw -= dx * k; P.pitch = clamp(P.pitch - dy * k, -1.3, 1.3);
   if (state === 'menu' || state === 'intro') { P.yaw = clamp(P.yaw, -0.7, 0.7); P.pitch = clamp(P.pitch, -0.45, 0.45); }
 }
@@ -769,18 +905,20 @@ function pdown(e, role) {
   if (e.pointerType === 'mouse') {
     if (document.pointerLockElement === canvas) { mouseFire = true; return; }
     if (state === 'play' && canvas.requestPointerLock) { try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (err) {} }
-    role = 'fire';
+    if (state === 'play') setTimeout(() => { freeMouse = document.pointerLockElement !== canvas; }, 400);
+    role = freeMouse ? 'firehold' : 'fire';
   } else { touchUI = true; if (state === 'play') $('fire').hidden = false; }
   if (!role) role = (state === 'play' && e.clientX < innerWidth * 0.42) ? 'move' : 'look';
   if (role === 'move' && [...ptrs.values()].some(p => p.role === 'move')) role = 'look';
   ptrs.set(e.pointerId, { role, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now(), moved: 0 });
   try { e.target.setPointerCapture(e.pointerId); } catch (err) {}
   if (role === 'move') { $('stick').hidden = false; $('knob').hidden = false; $('stick').style.left = $('knob').style.left = e.clientX + 'px'; $('stick').style.top = $('knob').style.top = e.clientY + 'px'; }
-  if (role === 'fire') $('fire').classList.add('on');
+  if (role === 'fire' && e.pointerType !== 'mouse') $('fire').classList.add('on');
   e.preventDefault();
 }
 function pmove(e) {
-  if (e.pointerType === 'mouse' && document.pointerLockElement === canvas) { look(e.movementX, e.movementY, 0.0023); return; }
+  if (e.pointerType === 'mouse' && document.pointerLockElement === canvas) { freeMouse = false; look(e.movementX, e.movementY, 0.002); return; }
+  if (e.pointerType === 'mouse' && freeMouse && state === 'play') { look(e.movementX || 0, e.movementY || 0, 0.0028); return; }
   const p = ptrs.get(e.pointerId); if (!p) return;
   const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY; p.moved += Math.abs(dx) + Math.abs(dy);
   if (p.role === 'move') {
@@ -803,7 +941,10 @@ for (const ev of ['touchstart', 'touchmove', 'gesturestart', 'contextmenu', 'dbl
   document.addEventListener(ev, e => { if (!e.target.closest || !e.target.closest('.sheet')) e.preventDefault(); }, { passive: false });
 $('bLog').addEventListener('click', () => { $('log').hidden = false; });
 $('bLogClose').addEventListener('click', () => { $('log').hidden = true; });
-$('bLvl2').addEventListener('click', () => { A.init(); $('menu').hidden = true; state = 'transition'; goLevel(2); });
+const SENS = [['slow', 0.6], ['medium', 1], ['fast', 1.5]];
+let sensI = 1; try { const v = +localStorage.getItem('unearth.sens'); if (v >= 0 && v < 3 && localStorage.getItem('unearth.sens') !== null) sensI = v; } catch (e) {}
+const showSens = () => { $('bSens').textContent = 'Look speed: ' + SENS[sensI][0]; }; showSens();
+$('bSens').addEventListener('click', () => { sensI = (sensI + 1) % 3; try { localStorage.setItem('unearth.sens', sensI); } catch (e) {} showSens(); });
 $('bEnd').addEventListener('click', () => { toMenu(); });
 function pressStart() {
   if (state !== 'menu') return; A.init(); A.clunk(); state = 'intro'; stateT = 0; $('menu').hidden = true; L.btn.material.color.set(0x0a4a22); L.btnLight.intensity = 0.1;
@@ -819,10 +960,10 @@ function fireRays(dt) {
   vR.set(e[0], e[1], e[2]); vU.set(e[4], e[5], e[6]); vF.set(-e[8], -e[9], -e[10]);
   const ox = e[12], oy = e[13], oz = e[14];
   vM.set(GUN_REST.x, GUN_REST.y + 0.01, GUN_REST.z - 0.19).applyMatrix4(camera.matrixWorld);
-  rayAcc += dt * 230; let n = Math.min(12, rayAcc | 0); rayAcc -= n;
+  rayAcc += dt * (gun2 ? 320 : 230); let n = Math.min(16, rayAcc | 0); rayAcc -= n;
   let tr = 0, charging = null;
   while (n-- > 0) {
-    const a = Math.random() * 6.283, r = Math.sqrt(Math.random()) * 0.085;
+    const a = Math.random() * 6.283, r = Math.sqrt(Math.random()) * (gun2 ? 0.17 : 0.085);
     let dx = vF.x + (vR.x * Math.cos(a) + vU.x * Math.sin(a)) * r, dy = vF.y + (vR.y * Math.cos(a) + vU.y * Math.sin(a)) * r, dz = vF.z + (vR.z * Math.cos(a) + vU.z * Math.sin(a)) * r;
     const l = Math.hypot(dx, dy, dz); dx /= l; dy /= l; dz /= l;
     const h = castWorld(ox, oy, oz, dx, dy, dz);
@@ -850,12 +991,13 @@ function updatePlay(dt) {
     P.x += (-s * my + c * mx) * sp * dt; P.z += (-c * my - s * mx) * sp * dt; P.bob += dt * 9 * Math.min(1, ml);
     collide(P, 0.36);
   }
-  firing = canAct && (mouseFire || keys.Space || [...ptrs.values()].some(p => p.role === 'fire'));
+  firing = canAct && (mouseFire || keys.Space || [...ptrs.values()].some(p => p.role === 'fire' || p.role === 'firehold'));
   let charging = null;
   if (firing) charging = fireRays(dt); else if (tracers.visible) { trPos.fill(0); trGeo.attributes.position.needsUpdate = true; }
   tracers.visible = firing;
   muzzle.intensity = lerp(muzzle.intensity, firing ? 1.5 + Math.random() * 0.4 : 0.0, Math.min(1, dt * 14));
-  gun.coil.material.color.setRGB(firing ? 1 : 0.2, firing ? 0.6 + Math.random() * 0.2 : 0.1, firing ? 0.2 : 0);
+  if (gun2) gun.coil.material.color.setRGB(firing ? 0.75 : 0.15, firing ? 0.45 + Math.random() * 0.2 : 0.08, firing ? 1 : 0.25);
+  else gun.coil.material.color.setRGB(firing ? 1 : 0.2, firing ? 0.6 + Math.random() * 0.2 : 0.1, firing ? 0.2 : 0);
   A.set(A.gun, firing ? 0.11 : 0, 0.04);
   if (charging) { A.set(A.chg, 0.07, 0.05); if (A.chgOsc) A.chgOsc.frequency.setTargetAtTime(160 + charging.charge * 620, A.ctx.currentTime, 0.05); } else A.set(A.chg, 0, 0.08);
   // cells
@@ -879,7 +1021,7 @@ function updatePlay(dt) {
   }
   if (L.motes) L.motes.material.uniforms.uTime.value = now;
   const d = L.door;
-  if (d && d.open) { d.t = Math.min(1, d.t + dt / 2.2); d.panel.position.y = d.y0 + smooth(d.t) * d.lift; if (d.t > 0.7 && !pending && Math.hypot(P.x - d.x, P.z - d.z) < 2.4) { if (L.id === 1) goLevel(2); else goLevel(99); } }
+  if (d && d.open) { d.t = Math.min(1, d.t + dt / 2.2); d.panel.position.y = d.y0 + smooth(d.t) * d.lift; if (d.t > 0.7 && !pending && Math.hypot(P.x - d.x, P.z - d.z) < 2.4) { goLevel(L.id < 3 ? L.id + 1 : 99); } }
   // ghosts
   let near = 99;
   for (const g of L.ghosts) {

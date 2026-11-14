@@ -1,6 +1,6 @@
 # Unearth (game)
 
-**Play it in a browser:** the Godot project is exported to the web and uploaded to itch.io (see "Web build" below). Changes are tracked in [CHANGELOG.md](CHANGELOG.md), and the same log is in the game's menu. [web/index.html](web/index.html) is the v0.1 browser prototype (Three.js), kept for reference and no longer developed.
+**The game is the browser version in [web/index.html](web/index.html)** (Three.js, one file, touch and mouse controls), published as a Claude artifact. It has three levels: the Loading Bay, Reception and the Lab. Changes are tracked in [CHANGELOG.md](CHANGELOG.md), and the same log is in the game's menu. The Godot project described below (v0.2.x, also exported to the web and uploaded to itch.io) is parked.
 
 The game now opens on the menu inside the Cleaner's ship, plays the opening sequence, and puts you in level 1, the Loading Bay of Meridian Labs. The earlier prototype (a dark test hall with the ghost gas, and the image artifacts you reveal with the ray gun) is still there: run with `-- --level=hall`.
 

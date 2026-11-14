@@ -2,6 +2,24 @@
 
 The same log is shown in the game (menu, "Version log").
 
+## v0.3 (2026-11-14): the Lab (browser version)
+
+Direction decisions
+- Development is back on the browser version (`web/index.html`); the audience preferred it. The Godot project and its v0.2.x web export are parked, and their version numbers stay in this log as history.
+- The recording is not a cutscene you are pulled into. It replays in the test chamber as figures of light while you watch through the observation window, free to move.
+- The gas in the recording first appears as a spiral, then pulls into a copy of the scientist; recorded people are warm white, the gas is cyan.
+- The second gun is called the projector. It is violet, sprays twice as wide, pushes a ghost back while the beam is on it, lights ghosts for about three times as long and freezes them sooner.
+- The Lab has no window, so no flares: the projector's long-lasting light does that job.
+
+What is in
+- Level 3, the Lab: an observation room and a test chamber. Charging the console cell plays the recording of containment test fourteen (about 40 seconds); the chamber door then opens and the projector is on the floor inside.
+- Taking the projector brings three ghosts at once, and each further cell brings one more. Three more cells restore power.
+- Mouse play without pointer capture (browsers that refuse it, such as on an iPad): move to look, hold the button to fire.
+- Menu: "Look speed" (slow, medium, fast) and a button for each level reached. Mouse look is a little slower by default.
+
+Not checked
+- Sound by ear, and the game on a real iPad.
+
 ## v0.2.2 (2026-11-13): clicking and sensitivity
 
 - Bug: when a browser refused pointer capture, Godot still reported the mouse as captured, so clicks were aimed at the crosshair instead of the cursor (START could not be pressed). The game now checks the browser's real capture state.
