@@ -2,6 +2,13 @@
 
 The same log is shown in the game (menu, "Version log").
 
+## v0.3.1 (2026-11-14): darker, paler, closer
+
+Audience feedback on the levels
+- Level 1: the Earth is removed from the window; the pale sun is there instead. Reception's window and sun moved to the left wall, so the sun is on the same side of the station in both levels ("WATCH THE FLARES" moved to the right wall).
+- All levels are darker: ambient light roughly halved and the working strip light in the Loading Bay is dead. The light now comes from the windows, pale and slightly unsteady, in pools that fall off away from the glass. The gas (motes, ghosts) keeps its brightness. The Lab has no window and is darker as well.
+- Level 1 ending: the shape in the dust no longer stands at the far door. It appears about three metres from the player, off to the side and behind, mid-stride and walking toward them, with a sound cue and "There is someone behind you." It stays until the player has looked at it (or nine seconds), then the vents take it.
+
 ## v0.3 (2026-11-14): the Lab (browser version)
 
 Direction decisions
